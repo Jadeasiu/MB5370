@@ -1,0 +1,35 @@
+---
+title: "Qfish Shark data"
+output: html_document
+date: "2023-05-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#imported the data to R
+Sharks1 <- read.csv("sharks1.csv")
+```
+
+##ggplot
+```{r}
+ggplot(data=Sharks1, aes(x = Year, y= Count, colour = SpeciesGroup)) +
+  geom_point() + geom_line() +
+  facet_wrap(~ Area, nrow=7)+
+   scale_y_continuous(breaks = seq(0, 300, by = 100), expand=c(0,0), limits=c(0,300)) +
+  scale_fill_discrete(breaks=c('Mammals', 'Sharks', 'Turtles', 'Other', 'Total Species'))  +
+  theme(plot.title = element_text(hjust=0.5),
+        plot.subtitle = element_text(hjust=0.5),
+        panel.background = element_blank(),
+        legend.position="right",
+        legend.text=element_text(size=8),
+        legend.key = element_blank(),
+        legend.background = element_blank(),
+        axis.text.y=element_text(colour="black"),
+        axis.text.x=element_text(colour="black"),
+        axis.line = element_line(colour = "black"),
+  )
+```
+
