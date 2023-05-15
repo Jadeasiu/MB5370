@@ -778,12 +778,187 @@ stocks
 stocks %>% 
   pivot_wider(names_from = year, values_from = return)
 ```
+Because these explicit missing values may not be important in other representations of the data, you can set values_drop_na = TRUE in pivot_longer() to turn explicit missing values implicit. 
+This makes those missing values that are probably not supposed to be missing now a valid row of data in your data frame
+```{r}
+stocks %>% 
+  pivot_wider(names_from = year, values_from = return) %>% 
+  pivot_longer(
+    cols = c(`2015`, `2016`), 
+    names_to = "year", 
+    values_to = "return", 
+    values_drop_na = TRUE
+  )
+```
+
+Another important tool for making missing values explicit - very clear to you that they represent actual missing data values -  in tidy data is complete(). This function takes a set of columns and finds all the unique combinations and then ensures the original dataset contains all of those values, including filling in explicit NA where needed.
+```{r}
+stocks
+stocks %>% 
+  complete(year, qtr)
+```
+The fill() function can be used to fill in missing values that were meant to be carried forward in the data entry process. It can take columns with missing values and carry the last observation forward (replace them with the most recent non-missing value).
+```{r}
+treatment <- tribble(
+  ~ person,           ~ treatment, ~response,
+  "Derrick Whitmore", 1,           7,
+  NA,                 2,           10,
+  NA,                 3,           9,
+  "Katherine Burke",  1,           4
+)
+treatment
+
+treatment %>% 
+  fill(person)
+```
+# Workshop 5: Spatial Data in R
+
+```{r}
+#copepods_raw.csv
+#install.packages("sf") 
+#install.packages("terra")
+#install.packages("tmap")
+
+#load into R library
+library(tidyverse)
+library(sf) # simple features
+library (terra) # for raster
+library(tmap) # Thematic maps are geographical maps in which spatial data distributions are visualized
+```
+```{r}
+#load the copepod data into R studio
+library(readr)
+dat <- read_csv("data-for-course/copepods_raw.csv")
+dat
+```
+Plot the coordinates for the samples (segments of the CPR silks)
+```{r}
+library(ggplot2)
+ggplot(dat) + 
+  aes(x = longitude, y = latitude, color = richness_raw) +
+  geom_point()
+```
+Look at richness in a non-spatial way
+```{r}
+ggplot(dat, aes(x = latitude, y = richness_raw)) + 
+  stat_smooth() + 
+  geom_point()
+```
+Turn our point data into a spatially referenced data frame using the sf package (sf stands for ‘simple features’) which is an open standard for geospatial databases
+  *st_as_sf converts different data types to simple features. 
+  *dat is our original data. 
+  *coords gives the names of the columns that relate to the spatial coordinates (in order of X    coordinate followed by Y coordinate).
+  *crs stands for coordinate reference system which we will discuss next.
+```{r}
+sdat <- st_as_sf(dat, coords = c("longitude", "latitude"), 
+                 crs = 4326)
+```
+
+### Coordinate Reference Systems
+Coordinate reference systems are required for 2D mapping to compensate for the lumpy, spherical (3D) nature of the earth
+In R, best practice is to either use an EPSG code or Well-known text (WKT) to define a CRS. A WKT string contains all of the detailed information we need to define a crs, but is cumbersome if you don’t need all of the detail
+
+```{r}
+crs4326 <- st_crs(4326)
+crs4326 # look at the whole CRS
+crs4326$Name # pull out just the name of the crs
+crs4326$wkt # crs in well-known text format
+```
+### Cartography 
+```{r}
+plot(sdat["richness_raw"])
+```
+Here we have only plotted the richness column. If we used plot(sdat) it would create a panel for every variable in our dataframe. In sf, we can use square brackets ["richness_raw"] to select a single variable.
+
+```{r}
+plot(sdat)
+```
+
+### Thematic Maps for Communication 
+tmap works similarly to ggplot2 in that we build and add on layers. Here we only have one layer from sdat. We declare the layer with tm_shape() (in this case sdat), then the plot type with the following command
+  *tm_dots to plot dots of the coordinates. Other options are tm_polygons, tm_symbols and many    others we’ll see later.
+  *We’ve chosen "richness_raw" as the color scale
 
 
+```{r}
+#using tmap
 
+tm1<-tm_shape(sdat) + 
+  tm_dots(col = "richness_raw")
+tmap_save(tm1, filename = "Richness-map.png", 
+          width = 600, height = 600)
+```
 
+###Mapping spatial polygons as layers
+The polygons in this copepod data are stored as shapefiles. 
+Note that .shp files are generally considered an undesirable file format because they are inefficient at storing data and to save one shapefile you actually create multiple files. This means bits of the file might be lost if you transfer the data somewhere else
+A better format than shapefile is the Geopackage which can save and compress multiple different data types all in a single file
+We can read shapefiles directly into R with the st_read command (which is like read_csv, but for spatial files):
+```{r}
+aus <- st_read("data-for-course/spatial-data/Aussie/Aussie.shp")
+shelf <- st_read("data-for-course/spatial-data/aus_shelf/aus_shelf.shp")
+aus
+```
+```{r}
+tm_shape(shelf) + 
+  tm_polygons()
+```
+Here we have indicated the shape of our map (shelf) and we have added a command bbox = sdat to expand the extent of the map so it depicts all of our copepod data points. We then add the shape of Australia (aus) on top of the shelf, and finally our copepod data (sdat) in the form of points using tm_dots().
+```{r}
+tm_shape(shelf, bbox = sdat) + 
+  tm_polygons() +
+  tm_shape(aus) + 
+  tm_polygons() + 
+  tm_shape(sdat) + 
+  tm_dots()+
+  tmap_style("beaver")
+```
+### Exploring t_map
+```{r}
+vignette('tmap-getstarted')
+library(tmap)
+data("World")
+tmap_mode("view")
+tm_shape(World) +
+    tm_polygons(c("HPI", "economy")) +
+    tm_facets(sync = TRUE, ncol = 2)
+```
+```{r}
+tmap_mode("plot")
+## tmap mode set to plotting
 
+data(NLD_muni)
 
+NLD_muni$perc_men <- NLD_muni$pop_men / NLD_muni$population * 100
+
+tm_shape(NLD_muni) +
+    tm_polygons("perc_men", palette = "RdYlBu") +
+    tm_facets(by = "province")
+```
+```{r}
+tmap_mode("plot")
+## tmap mode set to plotting
+
+data(NLD_muni)
+tm1 <- tm_shape(NLD_muni) + tm_polygons("population", convert2density = TRUE)
+tm2 <- tm_shape(NLD_muni) + tm_bubbles(size = "population")
+
+tmap_arrange(tm1, tm2)
+```
+```{r}
+tmap_mode("view")
+tm_basemap("Stamen.Watercolor") +
+tm_shape(metro) + tm_bubbles(size = "pop2020", col = "red") +
+tm_tiles("Stamen.TonerLabels")
+```
+```{r}
+tmap_options(bg.color = "black", legend.text.color = "white")
+
+tm_shape(World) +
+    tm_polygons("HPI", legend.title = "Happy Planet Index")
+```
+###Exporting your map
+using tmap_save() to save your map as either an .html file or an image file (.JPG, .PNG etc.) to your designated folder.   
 
 
 
